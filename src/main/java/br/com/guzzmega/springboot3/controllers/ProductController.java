@@ -14,6 +14,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
+
 @RestController
 public class ProductController {
 
@@ -30,34 +33,45 @@ public class ProductController {
 
 	@GetMapping("/products")
 	public ResponseEntity<List<ProductModel>> getAllProducts(){
-		return ResponseEntity.status(HttpStatus.OK).body(productRepository.findAll());
+		List<ProductModel> productList = productRepository.findAll();
+
+		if(!productList.isEmpty()){
+			for(ProductModel product : productList){
+				product.add(linkTo(methodOn(ProductController.class).getOneProduct(product.getIdProduct())).withSelfRel());
+			}
+		}
+
+		return ResponseEntity.status(HttpStatus.OK).body(productList);
 	}
 
 	@GetMapping("/products/{id}")
 	public ResponseEntity<Object> getOneProduct(@PathVariable(value="id") UUID id){
 		Optional<ProductModel> productOptional = productRepository.findById(id);
+
 		if(productOptional.isEmpty()){
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(String.format("Can't find product with ID %s", id));
 		}
 
+		productOptional.get().add(linkTo(methodOn(ProductController.class).getAllProducts()).withRel("productList"));
 		return ResponseEntity.status(HttpStatus.OK).body(productOptional.get());
 	}
 
 	@PutMapping("/products/{id}")
 	public ResponseEntity<Object> putProduct(@RequestBody @Valid ProductRecordDto productRecordDto, @PathVariable(value="id" ) UUID id){
 		Optional<ProductModel> productOptional = productRepository.findById(id);
+
 		if(productOptional.isEmpty()){
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(String.format("Can't find product with ID %s", id));
 		}
-		var productModel = productOptional.get();
-		BeanUtils.copyProperties(productRecordDto, productModel);
 
-		return ResponseEntity.status(HttpStatus.OK).body(productRepository.save(productModel));
+		BeanUtils.copyProperties(productRecordDto, productOptional.get());
+		return ResponseEntity.status(HttpStatus.OK).body(productRepository.save(productOptional.get()));
 	}
 
 	@DeleteMapping("/products/{id}")
 	public ResponseEntity<Object> deleteModel(@PathVariable(value="id") UUID id){
 		Optional<ProductModel> productOptional = productRepository.findById(id);
+
 		if(productOptional.isEmpty()){
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(String.format("Can't find product with ID %s", id));
 		}
